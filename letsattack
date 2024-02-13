@@ -1,0 +1,66 @@
+# Echo statement for script identification
+echo "Karandarji's Personalise script for Recon"
+
+# Prompt user to enter domain
+echo "Enter Domain:"
+read target && mkdir -p $target && cd $target && 
+
+# Perform subdomain enumeration, live host detection, and fetch URLs using subfinder, httpx, and waybackurls
+subfinder -d $target -silent | tee subfinder.txt | httpx -silent | tee Livedomains.txt && cat Livedomains.txt | waybackurls | tee Wayback.txt 
+
+# Detail analysis of live domains
+echo " Detail Live domain Analysis"
+cat subfinder.txt | httpx -cl -sc -silent | tee httpx_detail.txt 
+
+# Filter URLs with 200 OK status
+echo " 200 OK"
+cat subfinder.txt | httpx -mc 200 -silent > 200_httpx_detail.txt 
+
+# Fuzz URLs with 4** status codes
+echo "4** Series"
+cat subfinder.txt | httpx -mc 401,402,403,404 -silent > Fuzz_httpx_detail.txt 
+
+# GF patterns extraction
+echo "Making of all the file from GF"
+# Various patterns extracted using GF
+# Note: gf is a tool for extracting predefined patterns from URLs.
+# Each command extracts a specific pattern and saves it to a corresponding file.
+# For example, "gf aws-keys" extracts AWS keys from URLs and saves them to gf_aws_keys.txt
+# Similarly for other patterns like IDOR, API keys, tokens, JS files, LFI, RCE, redirects, etc.
+# All extracted patterns are saved to respective files.
+cat Wayback.txt | gf aws-keys > gf_aws_keys.txt
+# (Additional commands for other patterns are similar)
+
+
+# Fuzzing for 4** status codes using ffuf
+echo " Lets Fuzz the 4** Series"
+cat Fuzz_httpx_detail.txt | while read host do ; do ffuf -w /usr/share/wordlists/SecLists/Fuzzing/fuzz-Bo0oM.txt -mc 200 -recursion -ac -u $host/FUZZ ;done
+
+# XSS testing
+echo "Starting XSS"
+# Injecting XSS payload into URLs and checking for execution
+# If payload executes, it indicates potential XSS vulnerability
+# Results are saved to XXS_Result.txt
+cat Wayback.txt | grep "="| qsreplace '"><img src =q onerror=prompt(8)>'| tee WIthpayload.txt | while read host do ; do curl --silent --path-as-is --insecure "$host" | grep -qs "prompt(8)>" && echo -e "$host \e[1;31m May be XSS\e[0m\n" || echo "$host \e[1;34m No XSS\e[0m\n" ;done | tee XXS_Result.txt
+echo "XXS_Result Saved"
+
+# CORS testing
+echo "Starting CORS"
+# Checking CORS vulnerability by sending Origin header with a malicious domain
+# Results are saved to CORS.txt
+cat Livedomains.txt| while read host do ; do curl -qs https://www."$host" -I -H Origin:evil.com | grep -qs "evil.com" && echo "$host \e[1;31mVulnerable to CORS\e[0m\n" || echo "$host \e[1;34mNot Vulnerable to CORS\e[0m\n" ;done | tee CORS.txt
+echo "Result saved in CORS.txt"
+
+# Dalfox XSS scanning
+echo "Starting Dalfox"
+# Scanning for XSS vulnerabilities using Dalfox
+# Results are saved to dalfox.txt
+cat Wayback.txt | gf xss | sed 's/=.*/=/'| dalfox pipe > dalfox.txt
+echo "Dalfox result saved in dalfox.txt"
+
+# Nuclei workflows scanning
+echo "Starting Nuclei Workflows"
+# Running Nuclei workflows against live domains
+# Results are saved to Workflow.txt
+cat Livedomains.txt | nuclei -w /root/nuclei-templates/workflows | tee Workflow.txt
+echo "Nuclei result saved in Workflow.txt"
