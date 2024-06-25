@@ -1,0 +1,1 @@
+Designed a bash script to facilitate RedTeam operations, enabling penetration of the infrastructure and extraction ofpersonally identifiable information or other valuable assets from vulnerable endpoints and subdomains.
