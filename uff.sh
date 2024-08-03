@@ -66,3 +66,5 @@ echo "Starting Nuclei Workflows"
 cat Livedomains.txt | nuclei -w /root/nuclei-templates/workflows | tee Workflow.txt
 echo "Nuclei result saved in Workflow.txt"
 
+
+
